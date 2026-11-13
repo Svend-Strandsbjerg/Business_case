@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs';
-import { test, expect } from './fixtures.mjs';
+import { test, expect, EMPTY_BUCKET } from './fixtures.mjs';
 
 test('app loads without console or page errors', async ({ page, pageWatch }) => {
   await page.goto('/index.html');
   await page.waitForLoadState('load');
   await expect(page.locator('#tab-ic')).toBeAttached();
   await page.waitForTimeout(500);
-  expect(pageWatch.pageErrors, 'page errors').toEqual([]);
-  expect(pageWatch.consoleErrors, 'console errors').toEqual([]);
+  expect(pageWatch.pageErrors, 'page errors').toEqual(EMPTY_BUCKET);
+  expect(pageWatch.consoleErrors, 'console errors').toEqual(EMPTY_BUCKET);
 });
 
 test('Investment Case Excel export downloads an .xlsx', async ({ page, pageWatch }) => {
@@ -24,6 +24,6 @@ test('Investment Case Excel export downloads an .xlsx', async ({ page, pageWatch
   expect(download.suggestedFilename()).toMatch(/\.xlsx$/);
   const head = readFileSync(await download.path()).subarray(0, 2).toString('latin1');
   expect(head, 'xlsx (zip) signature').toBe('PK');
-  expect(pageWatch.pageErrors, 'page errors').toEqual([]);
-  expect(pageWatch.consoleErrors, 'console errors').toEqual([]);
+  expect(pageWatch.pageErrors, 'page errors').toEqual(EMPTY_BUCKET);
+  expect(pageWatch.consoleErrors, 'console errors').toEqual(EMPTY_BUCKET);
 });
