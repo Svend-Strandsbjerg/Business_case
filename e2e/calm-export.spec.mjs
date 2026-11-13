@@ -77,7 +77,12 @@ async function exportFile(page, workstream) {
   const msRows = [];
   for (let r = 1; r <= wm.rowCount; r++) msRows.push(wm.getRow(r).values.slice(1).map((v) => (v === null || v === undefined ? '' : v)));
   const column = (col) => titles.map((_, i) => cell(i + 1, col));
+  const wp = wb.getWorksheet('App phases');
+  const phRows = [];
+  for (let r = 1; r <= wp.rowCount; r++) phRows.push(wp.getRow(r).values.slice(1).map((v) => (v === null || v === undefined ? '' : v)));
   return {
+    ws,
+    phRows,
     fileName: d.suggestedFilename(),
     msRows,
     column,
@@ -152,33 +157,33 @@ test('happy path (months view): sheet, header, row count, parent and dates', asy
 
   const f = await exportFile(page);
   expect(f.fileName).toMatch(/^calm-tasks-public-\d{8}\.xlsx$/);
-  expect(f.sheets).toEqual(['Items', 'App milestones']);
+  expect(f.sheets).toEqual(['Items', 'App phases', 'App milestones']);
   expect(f.header).toEqual(columns);
   expect(f.dataRows).toBe(count);
 
-  // Row 1: sub-phase as Project Task, span = own days + activities' days.
-  expect([f.cell(1, 'Row'), f.cell(1, 'Type'), f.cell(1, 'Title'), f.cell(1, 'Parent Row')])
-    .toEqual([1, 'Project Task', names.sp0, '']);
-  expect([f.cell(1, 'Timebox'), f.cell(1, 'Start Date'), f.cell(1, 'Due Date')])
+  // Data row 1 (Excel row 2): sub-phase as Project Task, span = own days + activities' days.
+  expect([f.cell(1, 'Type'), f.cell(1, 'Title'), f.cell(1, 'Parent Row')])
+    .toEqual(['Project Task', names.sp0, '']);
+  expect([f.cell(1, 'Timebox'), f.cell(1, 'Start'), f.cell(1, 'Planned Completion')])
     .toEqual([names.ph0, '2027-02-01', '2027-04-30']);
-  // Row 2: first activity as Sub-task under row 1.
+  // Data row 2: first activity as Sub-task; Parent Row = Excel row 2.
   expect([f.cell(2, 'Type'), f.cell(2, 'Title'), f.cell(2, 'Parent Row'), f.cell(2, 'Timebox')])
-    .toEqual(['Sub-task', names.act0, 1, names.ph0]);
-  expect([f.cell(2, 'Start Date'), f.cell(2, 'Due Date'), f.cell(2, 'Tags')])
+    .toEqual(['Sub-task', names.act0, 2, names.ph0]);
+  expect([f.cell(2, 'Start'), f.cell(2, 'Planned Completion'), f.cell(2, 'Tags')])
     .toEqual(['2027-02-01', '2027-02-28', 'app-export,public']);
-  expect([f.cell(2, 'Status'), f.cell(2, 'Source'), f.cell(2, 'Workstream')])
-    .toEqual(['Open', 'Manually created', 'SAP S/4HANA Cloud Public Edition']);
-  expect(['Description', 'Predecessors', 'Assigned Role', 'Assigned Person', 'References'].map((c) => f.cell(2, c)))
-    .toEqual(['', '', '', '', '']);
-  // Row 3: non-continuous painting -> first to last day, tag split.
-  expect([f.cell(3, 'Start Date'), f.cell(3, 'Due Date'), f.cell(3, 'Tags')])
+  expect([f.cell(2, 'Status'), f.cell(2, 'Source'), f.cell(2, 'Workstreams')])
+    .toEqual(['Open', 'Manually Created', 'SAP S/4HANA Cloud Public Edition']);
+  expect(['ID', 'Description', 'Predecessor Row', 'Assigned Role', 'Responsible', 'Team', 'Deliverable', 'References'].map((c) => f.cell(2, c)))
+    .toEqual(['', '', '', '', '', '', '', '']);
+  // Data row 3: non-continuous painting -> first to last day, tag split.
+  expect([f.cell(3, 'Start'), f.cell(3, 'Planned Completion'), f.cell(3, 'Tags')])
     .toEqual(['2027-02-01', '2027-04-30', 'app-export,public,split']);
-  // An activity in the second phase points to its own sub-phase.
-  expect([f.cell(act100Row, 'Parent Row'), f.cell(act100Row, 'Timebox'), f.cell(act100Row, 'Start Date'), f.cell(act100Row, 'Due Date')])
-    .toEqual([sp10Row, names.ph1, '2027-05-01', '2027-05-31']);
+  // An activity in the second phase points to its own sub-phase's Excel row.
+  expect([f.cell(act100Row, 'Parent Row'), f.cell(act100Row, 'Timebox'), f.cell(act100Row, 'Start'), f.cell(act100Row, 'Planned Completion')])
+    .toEqual([sp10Row + 1, names.ph1, '2027-05-01', '2027-05-31']);
   expect(f.cell(sp10Row, 'Type')).toBe('Project Task');
   // Nothing painted -> empty dates.
-  expect([f.cell(4, 'Start Date'), f.cell(4, 'Due Date')]).toEqual(['', '']);
+  expect([f.cell(4, 'Start'), f.cell(4, 'Planned Completion')]).toEqual(['', '']);
   expectNoErrors(pageWatch);
 });
 
@@ -189,7 +194,7 @@ test('weeks view gives the same dates as months view', async ({ page, pageWatch 
   await paint(page, 0, 0, 1, [1, 3]);
   await paint(page, 0, 0, null, [2]);
   const summary = () => page.evaluate(() => window.CalmExport.collectRows().slice(0, 3)
-    .map((r) => [r['Start Date'], r['Due Date'], r['Tags']]));
+    .map((r) => [r['Start'], r['Planned Completion'], r['Tags']]));
   const months = await summary();
   expect(months[0]).toEqual(['2027-02-01', '2027-04-30', 'app-export,public']);
   await page.evaluate(() => icSetPeriod('weeks'));
@@ -227,7 +232,7 @@ test('after an edition switch the export uses the new edition, and switching bac
   const f = await exportFile(page);
   expect(f.fileName).toMatch(/^calm-tasks-private-new-\d{8}\.xlsx$/);
   expect(f.dataRows).toBe(count);
-  expect([f.cell(1, 'Title'), f.cell(1, 'Workstream'), f.cell(1, 'Tags')])
+  expect([f.cell(1, 'Title'), f.cell(1, 'Workstreams'), f.cell(1, 'Tags')])
     .toEqual([names.sp0, 'SAP Cloud ERP Private – New Implementation', 'app-export,private-new']);
 
   await page.evaluate(() => pmSelectType('public'));
@@ -236,7 +241,7 @@ test('after an edition switch the export uses the new edition, and switching bac
   await expect(page.locator('#calm-export-btn')).toHaveCount(1);
   const g = await exportFile(page);
   expect(g.fileName).toMatch(/^calm-tasks-public-\d{8}\.xlsx$/);
-  expect(g.cell(1, 'Workstream')).toBe('SAP S/4HANA Cloud Public Edition');
+  expect(g.cell(1, 'Workstreams')).toBe('SAP S/4HANA Cloud Public Edition');
   expectNoErrors(pageWatch);
 });
 
@@ -268,7 +273,7 @@ test('a slow ExcelJS load still exports the click-time edition after a switch an
   expect(before.edition).toBe('public');
   expect(d.suggestedFilename()).toMatch(/^calm-tasks-public-\d{8}\.xlsx$/);
   expect(ws.rowCount - 1).toBe(count);
-  expect([cell('Title'), cell('Workstream'), cell('Tags')])
+  expect([cell('Title'), cell('Workstreams'), cell('Tags')])
     .toEqual([before.sp0, 'WS at click', 'app-export,public']);
   expectNoErrors(pageWatch);
 });
@@ -352,10 +357,10 @@ test('Workstream: default, changed value on every row, empty value leaves the co
   await expect(page.locator(WS)).toHaveValue('SAP S/4HANA Cloud Public Edition');
   await page.locator(CANCEL).click();
   const f = await exportFile(page, 'Finance stream');
-  const ws = f.column('Workstream');
+  const ws = f.column('Workstreams');
   expect([ws.length > 1, ws.filter((v) => v !== 'Finance stream').length]).toEqual([true, 0]);
   const g = await exportFile(page, '');
-  expect(g.column('Workstream').filter((v) => v !== '').length).toBe(0);
+  expect(g.column('Workstreams').filter((v) => v !== '').length).toBe(0);
   expectNoErrors(pageWatch);
 });
 
@@ -380,7 +385,7 @@ test('App milestones sheet: header only without milestones; gate milestone row w
   await setStart(page);
   await paint(page, 0, 0, 0, [1]);
   const f = await exportFile(page);
-  expect(f.sheets).toEqual(['Items', 'App milestones']);
+  expect(f.sheets).toEqual(['Items', 'App phases', 'App milestones']);
   expect(f.msRows).toEqual([['Name', 'Date', 'Quality gate', 'Phase', 'Sub-phase']]);
 
   // Monday 1 Mar 2027, linked to the second phase; plus an earlier unlinked one.
@@ -416,5 +421,81 @@ test('v1 exportXlsx still exists and opens exactly one export dialog', async ({ 
   await page.locator(CANCEL).click();
   await expect(page.locator(DIALOG)).toHaveCount(0);
   expect(downloads).toBe(0);
+  expectNoErrors(pageWatch);
+});
+
+// ---- v3: exact tenant template header, Excel-row Parent Row, App phases sheet ----
+
+const TEMPLATE_HEADER = ['Title', 'ID', 'Scope', 'Solution Process', 'Type', 'Story Points', 'Effort (Hours)',
+  'Source', 'Predecessor Row', 'Status', 'Requirement Status', 'Defect Status', 'Quality Gate Status',
+  'Risk Status', 'Impact (Risk)', 'Probability (Risk)', 'Category (Risk)', 'Mitigation Strategy (Risk)',
+  'Release', 'Timebox', 'Start', 'Planned Completion', 'Duration', 'Parent Row', 'Team', 'Assigned Role',
+  'User Type', 'Owner (Risk)', 'Responsible', 'Reviewer', 'Involved Parties', 'Workstreams', 'Deliverable',
+  'Classification', 'Sub-Classification', 'Test Classification', 'Description', 'External ID', 'References',
+  'Tags', 'Comments', 'External Reference Name', 'External Reference ID', 'External Reference URL'];
+
+test('v3 Items sheet matches the tenant template: header, parent rows, constants, plain-string dates', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  await paint(page, 0, 0, 0, [1]);
+  await paint(page, 0, 0, null, [2]);
+  await paint(page, 1, 0, 0, [4]);
+  const count = await expectedCount(page);
+  const f = await exportFile(page);
+  const ws = f.ws;
+  // AC2: exact header, no extra columns.
+  expect(f.header).toEqual(TEMPLATE_HEADER);
+  expect(ws.getRow(1).cellCount).toBe(44);
+  expect(ws.columnCount).toBe(44);
+  const col = (name) => TEMPLATE_HEADER.indexOf(name) + 1;
+  const raw = (r, name) => ws.getRow(r).getCell(col(name)).value;
+  const val = (r, name) => { const v = raw(r, name); return v === null || v === undefined ? '' : v; };
+  // AC3: row 2 is a Project Task without parent; row 3 a Sub-task under row 2.
+  expect([val(2, 'Type'), val(2, 'Parent Row')]).toEqual(['Project Task', '']);
+  expect([val(3, 'Type'), raw(3, 'Parent Row')]).toEqual(['Sub-task', 2]);
+  expect(ws.rowCount - 1).toBe(count);
+  const bad = { parent: [], source: [], status: [], date: [], id: [], ext: [] };
+  const ext = new Set();
+  for (let r = 2; r <= ws.rowCount; r++) {
+    const type = val(r, 'Type');
+    if (type === 'Sub-task') {
+      const p = raw(r, 'Parent Row');
+      if (typeof p !== 'number' || p < 2 || p >= r || val(p, 'Type') !== 'Project Task') bad.parent.push(r);
+    } else if (type !== 'Project Task' || val(r, 'Parent Row') !== '') bad.parent.push(r);
+    if (val(r, 'Source') !== 'Manually Created') bad.source.push(r);
+    if (val(r, 'Status') !== 'Open') bad.status.push(r);
+    for (const c of ['Start', 'Planned Completion']) {
+      const v = val(r, c);
+      if (v !== '' && !(typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v))) bad.date.push(`${r}:${c}`);
+    }
+    if (val(r, 'ID') !== '') bad.id.push(r);
+    const e = val(r, 'External ID');
+    if (typeof e !== 'string' || !/^bc-public-/.test(e) || ext.has(e)) bad.ext.push(r);
+    ext.add(e);
+  }
+  expect(bad).toEqual({ parent: [], source: [], status: [], date: [], id: [], ext: [] });
+  // AC4: dates were written as text, not Date cells.
+  expect([typeof raw(2, 'Start'), raw(2, 'Start'), raw(2, 'Planned Completion')]).toEqual(['string', '2027-02-01', '2027-03-31']);
+  const ids = await page.evaluate(() => [icPhases[0].subPhases[0].id, icPhases[0].subPhases[0].subSubPhases[0].id]);
+  expect([val(2, 'External ID'), val(3, 'External ID')]).toEqual([`bc-public-${ids[0]}`, `bc-public-${ids[1]}`]);
+  expectNoErrors(pageWatch);
+});
+
+test('v3 App phases sheet: six phases in order with first and last painted day', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  await paint(page, 1, 0, 0, [1]); // phase 2, activity: Feb 2027
+  await paint(page, 1, 1, null, [3]); // phase 2, another sub-phase itself: Apr 2027
+  await paint(page, 0, 0, 0, [2]); // phase 1: Mar 2027
+  const phases = await page.evaluate(() => icPhases.map((p) => p.name));
+  expect(phases.length).toBe(6);
+  const f = await exportFile(page);
+  expect(f.sheets).toEqual(['Items', 'App phases', 'App milestones']);
+  expect(f.phRows[0]).toEqual(['Phase', 'Start', 'End']);
+  expect(f.phRows.slice(1).map((r) => r[0])).toEqual(phases);
+  expect(f.phRows[2]).toEqual([phases[1], '2027-02-01', '2027-04-30']);
+  expect(f.phRows[1]).toEqual([phases[0], '2027-03-01', '2027-03-31']);
+  expect(f.phRows[3]).toEqual([phases[2], '', '']);
+  expect(f.msRows).toEqual([['Name', 'Date', 'Quality gate', 'Phase', 'Sub-phase']]);
   expectNoErrors(pageWatch);
 });
