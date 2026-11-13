@@ -402,3 +402,19 @@ test('App milestones sheet: header only without milestones; gate milestone row w
   ]);
   expectNoErrors(pageWatch);
 });
+
+test('v1 exportXlsx still exists and opens exactly one export dialog', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  await paint(page, 0, 0, 0, [1]);
+  let downloads = 0;
+  page.on('download', () => { downloads += 1; });
+  expect(await page.evaluate(() => typeof window.CalmExport.exportXlsx)).toBe('function');
+  await page.evaluate(() => window.CalmExport.exportXlsx());
+  await expect(page.locator(DIALOG)).toHaveCount(1);
+  await expect(page.locator(OK)).toBeEnabled();
+  await page.locator(CANCEL).click();
+  await expect(page.locator(DIALOG)).toHaveCount(0);
+  expect(downloads).toBe(0);
+  expectNoErrors(pageWatch);
+});

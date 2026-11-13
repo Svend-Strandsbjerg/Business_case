@@ -305,7 +305,9 @@
 
   window.CalmExport = {
     COLUMNS: COLUMNS, MS_COLUMNS: MS_COLUMNS, collectRows: collectRows,
-    collectMilestones: collectMilestones, checks: checks, openDialog: openDialog
+    collectMilestones: collectMilestones, checks: checks, openDialog: openDialog,
+    // v1 entry point, kept as an alias: it opens the dialog so the checks apply.
+    exportXlsx: openDialog
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectButton);
