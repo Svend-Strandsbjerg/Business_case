@@ -231,3 +231,179 @@ Limitations, which do not block add-only:
 - **Clusters.** There is no cluster per phase in PM mode (1.2), so "roll-out
   cluster" cannot be read from the Module 5 plan without changing code. This
   affects decision D3, not feasibility.
+
+---
+
+## 3. Mapping
+
+### 3.1 Assumed columns (PROVISIONAL)
+
+> **PROVISIONAL.** The exact column headers in the Cloud ALM Items sheet are not
+> known; they vary by Cloud ALM release. Once the human adds the empty tenant
+> template at `docs/calm-task-template.xlsx`, the header strings below must be
+> replaced with the template's, and the column order taken from it.
+> `calm-export.js` keeps them in one `COLUMNS` constant for that reason.
+
+Assumed Items columns, in this order:
+
+1. `Row`, a sequential reference used by parent and predecessor columns
+2. `Type`
+3. `Title`
+4. `Description`
+5. `Parent Row`
+6. `Predecessors`
+7. `Status`
+8. `Timebox`
+9. `Deliverable`
+10. `Workstream`
+11. `Start Date`
+12. `Due Date`
+13. `Tags`
+14. `Assigned Role`
+15. `Assigned Person`
+16. `References`
+17. `Source`
+
+The unique ID column from "Download for update" is not created by a first
+upload. It only matters for option (b) and (c).
+
+### 3.2 Field-by-field
+
+"Exists" means it is in the model as-is. "Derived" means it is computed from
+existing data. "Missing" means it is not in the model.
+
+| Items column | App source | Availability | Notes |
+|---|---|---|---|
+| Type | Tree level | Derived | Depends on the chosen depth (3.3). |
+| Title | `sp.name`, `act.name` (e.g. 14987 ff.) | Exists | Names are up to 91 chars (1.1). Truncate if the template sets a limit. |
+| Description | None | Missing | Optional: "Activate phase X / sub-phase Y", generated. |
+| Parent Row | Position in the tree | Derived | Row number of the parent row in the same sheet. |
+| Predecessors | None | Missing | The app has no dependencies. One option is to chain sub-phases by phase order, but that would invent logic. **Leave empty in v1.** |
+| Status | None | Missing | Constant `Open`. |
+| Timebox | `ph.name` (`Discover` … `Run`) | Exists | Must match a phase that **already exists** in the Cloud ALM project. Checked in 6.4. |
+| Deliverable | `ph.deliverables[]` (7053) | Exists, but at phase level only | Free text that Cloud ALM accepts as custom values. For depth B (3.3), the sub-phase name. |
+| Workstream | IC cluster (`icGroups`, `ph.groupId`) | **Not available in PM** (1.2, 7363) | Constant or empty in v1 (D3). |
+| Start Date | min(`pdays`) | Derived (1.3) | ISO `YYYY-MM-DD`. Empty if nothing is painted. |
+| Due Date | max(`pdays`) | Derived (1.3) | Same as Start Date. |
+| Tags | `pmSelectedType`, run count | Derived | E.g. `app-export,public`. Add `split` when the painting is not continuous (D7). |
+| Assigned Role | `icITResources` / `icBizResources` names (8346) | Exists, but not linked to activities | Roles carry hours per period (6320), not per activity. Leave empty (D5). |
+| Assigned Person | None | Missing | Must be an existing tenant user ID or email. Leave empty. |
+| References | None | Missing | Empty. Format `[Label] (URL)` if used later. |
+| Source | Constant | Derived | `Manually created`. |
+
+Milestones (`icMilestones`, 5608) **do not become rows**:
+- The upload cannot create milestones; they must exist in project setup first
+  (D4).
+- The export instead writes a second sheet, `App milestones`, as a checklist
+  with: name, date (Monday of `md`), gate yes/no, phase.
+
+### 3.3 Hierarchy depth
+
+The tree has three levels: phase → sub-phase → activity. The phase is always the
+**Timebox**, never a row.
+
+| | **A: sub-phase → Project Task, activity → Sub-task** | **B: sub-phase → Deliverable, activity → Project Task** |
+|---|---|---|
+| Allowed pair | Project Task → Sub-task ✔ | No parent row needed ✔ |
+| Rows (Public) | ~98 + 320 = ~418 (the spike wrote 418 + header) | ~320 |
+| Structure in Cloud ALM | Real parent/child, so it can be expanded and rolled up | Flat list, grouped by the Deliverable filter |
+| Dates | Both levels have dates. The sub-phase gets the union span. | Activity dates only |
+| Re-parenting risk | Sub-tasks cannot be linked to requirements; only Project Task and User Story can | Activities stay Project Tasks, so they can be linked to Requirements later (Requirement → Project Task) |
+| Sub-phase with no activities but own painting | Its own row ✔ | Lost, unless it is exported as a Project Task |
+| Duplicate activity names (17–22 per edition) | Unambiguous: the parent row tells them apart | Unambiguous via Deliverable + Timebox |
+
+**Recommendation: A.**
+- It keeps the plan's structure and both levels of dates.
+- It matches how the app shows the plan.
+- B is better only if the project will trace requirements to the activities. In
+  that case, choose B in D2.
+
+---
+
+## 4. Activate duplication
+
+When a Cloud ALM project uses an SAP Activate roadmap template, Cloud ALM
+generates the roadmap tasks itself. The app's activity names come from the same
+roadmaps, so uploading the app's plan into such a project creates **two copies**
+of every activity.
+
+### (a) Project without a roadmap template; the app's plan is uploaded as project tasks
+
+- **For:**
+  - No duplicates.
+  - One simple upload, with no matching and no ID handling.
+  - Not affected by KBA 3561362, because nothing is exported from template
+    tasks.
+- **Against:**
+  - The project loses the template tasks' SAP content: descriptions,
+    accelerators and links.
+  - Updates to the roadmap template are not received.
+  - The Timebox phases must be created by hand in project setup.
+
+### (b) Keep the template tasks; the app only supplies dates through "Download for update"
+
+How it works:
+1. The user downloads the template tasks from the Cloud ALM project (with unique
+   IDs).
+2. The user uploads that file into the app.
+3. The app matches each row to an activity and writes Start and Due dates.
+4. The user re-uploads the file.
+
+Matching activities: by **normalized title** (trimmed, case-folded, whitespace
+collapsed), together with the phase (Timebox). The title alone is not enough:
+there are 17–22 duplicate activity names per edition (1.1). Two rows with the
+same title in the same phase are matched by order of appearance and flagged. Any
+row with no match is reported, and its dates are left untouched.
+
+- **For:**
+  - No duplicates.
+  - The SAP content and links are kept.
+- **Against:**
+  - The app needs an **import** path and must write into a foreign file layout.
+    That roughly doubles the scope.
+  - Names can differ between the template version and the app's names (renamed
+    or edited activities).
+  - It needs a round-trip every time the plan changes.
+- **KBA 3561362:** tasks generated from an Activate roadmap could not be exported
+  to Excel and imported into another project. Option (b) only re-imports into
+  the **same** project. That is the "Download for update" path, which is not the
+  case the KBA describes.
+  - Remaining risk: if download for update of template tasks hits the same
+    defect on a given tenant release, (b) cannot work at all.
+  - Verify this on the tenant before committing to (b).
+
+### (c) Hybrid
+
+Keep the roadmap template for its content, but upload the app's plan as
+**separate project tasks**. Mark them with a tag (`app-export`) or a dedicated
+Workstream (e.g. `App plan`). The template tasks are then ignored, or set to
+"Not Relevant" in bulk in Cloud ALM.
+
+- **For:** One simple upload, and the SAP content stays available.
+- **Against:** Duplicates are visible to everyone, and the project team has to
+  agree on which list is the real one.
+
+### Recommendation: (a)
+
+- It is the only option without duplicates or an import feature.
+- It is not affected by the KBA.
+- It fits "run a real project from the app's plan".
+
+Move to (c) if the team wants the SAP template content. Do (b) only as a later
+feature, after testing on the tenant that template tasks survive download for
+update.
+
+---
+
+## 5. Open decisions for the human
+
+| # | Decision | Recommendation |
+|---|---|---|
+| D1 | Option a / b / c (section 4) | **(a)**: a project without a roadmap template. |
+| D2 | Hierarchy depth | **A**: sub-phase → Project Task, activity → Sub-task. Choose B if requirements will trace to activities. |
+| D3 | Roll-out clusters as workstreams, tags or separate projects | Clusters do not exist in Module 5 (1.2, 7363). **v1: one Workstream per export, named after the edition, which the user can edit before export.** Separate projects per roll-out need a cluster concept in PM first, and that would mean changing code. |
+| D4 | Milestones (the upload cannot create them) | Create them in Cloud ALM project setup by hand. **The export adds an `App milestones` checklist sheet** and warns if any exist. |
+| D5 | Task owners (resources are roles with hours, not linked to activities) | **Leave Assigned Role and Person empty.** Assign owners in Cloud ALM. Writing a guessed role risks rejected rows, because persons must exist in the tenant. |
+| D6 | Exclude parked items? | **Yes.** They are already outside `icPhases` (1.4). Report the count in the pre-export summary. |
+| D7 | Non-continuous painted cells | **One row from min to max with tag `split`, plus a warning listing the affected activities.** Alternative: one row per run, titled "name (1/2)". That doubles rows and breaks predecessor numbering. |
+| D8 | Which edition(s) first | **Only the edition that is open** (`pmSelectedType`). All four share the same phase names, so nothing is edition-specific. Public first for test fixtures. |
