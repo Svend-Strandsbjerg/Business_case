@@ -238,33 +238,68 @@ Limitations, which do not block add-only:
 
 ## 3. Mapping
 
-### 3.1 Assumed columns (PROVISIONAL)
+### 3.1 Confirmed columns
 
-> **PROVISIONAL.** The exact column headers in the Cloud ALM Items sheet are not
-> known; they vary by Cloud ALM release. Once the human adds the empty tenant
-> template at `docs/calm-task-template.xlsx`, the header strings below must be
-> replaced with the template's, and the column order taken from it.
-> `calm-export.js` keeps them in one `COLUMNS` constant for that reason.
+> **Source:** the tenant's "Items For Creation Using Template" file, downloaded
+> from the Cloud ALM tenant (2026-11-13). This replaces the earlier provisional
+> list. SAP's rules: do not change the title or order of columns and do not add
+> columns. `Parent Row` is the **Excel row number** of the parent; the header is
+> row 1, so the first item is row 2. `calm-export.js` keeps the headers in one
+> `COLUMNS` constant.
 
-Assumed Items columns, in this order:
+Items columns, in this order (44):
 
-1. `Row`, a sequential reference used by parent and predecessor columns
-2. `Type`
-3. `Title`
-4. `Description`
-5. `Parent Row`
-6. `Predecessors`
-7. `Status`
-8. `Timebox`
-9. `Deliverable`
-10. `Workstream`
-11. `Start Date`
-12. `Due Date`
-13. `Tags`
-14. `Assigned Role`
-15. `Assigned Person`
-16. `References`
-17. `Source`
+1. `Title`
+2. `ID`
+3. `Scope`
+4. `Solution Process`
+5. `Type`
+6. `Story Points`
+7. `Effort (Hours)`
+8. `Source`
+9. `Predecessor Row`
+10. `Status`
+11. `Requirement Status`
+12. `Defect Status`
+13. `Quality Gate Status`
+14. `Risk Status`
+15. `Impact (Risk)`
+16. `Probability (Risk)`
+17. `Category (Risk)`
+18. `Mitigation Strategy (Risk)`
+19. `Release`
+20. `Timebox`
+21. `Start`
+22. `Planned Completion`
+23. `Duration`
+24. `Parent Row`
+25. `Team`
+26. `Assigned Role`
+27. `User Type`
+28. `Owner (Risk)`
+29. `Responsible`
+30. `Reviewer`
+31. `Involved Parties`
+32. `Workstreams`
+33. `Deliverable`
+34. `Classification`
+35. `Sub-Classification`
+36. `Test Classification`
+37. `Description`
+38. `External ID`
+39. `References`
+40. `Tags`
+41. `Comments`
+42. `External Reference Name`
+43. `External Reference ID`
+44. `External Reference URL`
+
+Names used in 3.2 map as follows: `Start Date` → `Start`, `Due Date` →
+`Planned Completion`, `Workstream` → `Workstreams`, `Predecessors` →
+`Predecessor Row`, `Assigned Person` → `Responsible`. The v1 `Row` column does
+not exist in the template. `Source` is `Manually Created`. `ID` stays empty
+(an ID makes Cloud ALM treat the row as an update); `External ID` carries
+`bc-<edition key>-<node id>`.
 
 The unique ID column from "Download for update" is not created by a first
 upload. It only matters for option (b) and (c).

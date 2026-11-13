@@ -4,12 +4,18 @@
 (function () {
   'use strict';
 
-  // PROVISIONAL Items headers (design 3.1). Replace with the tenant template's
-  // headers and order once docs/calm-task-template.xlsx is available.
+  // Items headers from the tenant's "Items For Creation Using Template" (design 3.1).
+  // Cloud ALM rejects files whose titles or order differ, or that add columns.
   var COLUMNS = [
-    'Row', 'Type', 'Title', 'Description', 'Parent Row', 'Predecessors', 'Status',
-    'Timebox', 'Deliverable', 'Workstream', 'Start Date', 'Due Date', 'Tags',
-    'Assigned Role', 'Assigned Person', 'References', 'Source'
+    'Title', 'ID', 'Scope', 'Solution Process', 'Type', 'Story Points', 'Effort (Hours)',
+    'Source', 'Predecessor Row', 'Status', 'Requirement Status', 'Defect Status',
+    'Quality Gate Status', 'Risk Status', 'Impact (Risk)', 'Probability (Risk)',
+    'Category (Risk)', 'Mitigation Strategy (Risk)', 'Release', 'Timebox', 'Start',
+    'Planned Completion', 'Duration', 'Parent Row', 'Team', 'Assigned Role', 'User Type',
+    'Owner (Risk)', 'Responsible', 'Reviewer', 'Involved Parties', 'Workstreams',
+    'Deliverable', 'Classification', 'Sub-Classification', 'Test Classification',
+    'Description', 'External ID', 'References', 'Tags', 'Comments',
+    'External Reference Name', 'External Reference ID', 'External Reference URL'
   ];
 
   // Workstream per edition (D3): the edition's display name, as in the PM bar.
@@ -53,20 +59,21 @@
     return false;
   }
 
-  function makeRow(rowNo, type, title, parentRow, timebox, workstream, ds, edition) {
+  // ID stays empty: an ID makes Cloud ALM treat the row as an update.
+  function makeRow(type, title, parentRow, timebox, workstream, ds, edition, extId) {
     var r = {};
     COLUMNS.forEach(function (c) { r[c] = ''; });
-    r['Row'] = rowNo;
-    r['Type'] = type;
     r['Title'] = title || '';
-    r['Parent Row'] = parentRow;
+    r['Type'] = type;
+    r['Source'] = 'Manually Created';
     r['Status'] = 'Open';
     r['Timebox'] = timebox || '';
-    r['Workstream'] = workstream;
-    r['Start Date'] = ds.length ? iso(ds[0]) : '';
-    r['Due Date'] = ds.length ? iso(ds[ds.length - 1]) : '';
+    r['Start'] = ds.length ? iso(ds[0]) : '';
+    r['Planned Completion'] = ds.length ? iso(ds[ds.length - 1]) : '';
+    r['Parent Row'] = parentRow;
+    r['Workstreams'] = workstream;
+    r['External ID'] = extId;
     r['Tags'] = 'app-export,' + edition + (isSplit(ds) ? ',split' : '');
-    r['Source'] = 'Manually created';
     return r;
   }
 
@@ -79,6 +86,14 @@
     var edition = opts.edition || window.pmSelectedType || '';
     var workstream = opts.workstream !== undefined ? opts.workstream : (WORKSTREAMS[edition] || '');
     var rows = [];
+    var seen = {};
+    // bc-<edition>-<node id>, suffixed on a repeated id so it stays unique in the file.
+    function extId(node) {
+      var base = 'bc-' + edition + '-' + (node.id != null ? node.id : ''), id = base, n = 2;
+      while (seen[id]) id = base + '-' + n++;
+      seen[id] = true;
+      return id;
+    }
     phases.forEach(function (ph) {
       (ph.subPhases || []).forEach(function (sp) {
         var acts = sp.subSubPhases || [];
@@ -87,10 +102,11 @@
         span.sort(function (a, b) { return a - b; });
         // Drop days shared by the sub-phase and its activities before the split check.
         span = span.filter(function (d, i) { return i === 0 || d !== span[i - 1]; });
-        var spRowNo = rows.length + 1;
-        rows.push(makeRow(spRowNo, 'Project Task', sp.name, '', ph.name, workstream, span, edition));
+        // Parent Row is the Excel row number: header = row 1, first item = row 2.
+        var spRowNo = rows.length + 2;
+        rows.push(makeRow('Project Task', sp.name, '', ph.name, workstream, span, edition, extId(sp)));
         acts.forEach(function (a) {
-          rows.push(makeRow(rows.length + 1, 'Sub-task', a.name, spRowNo, ph.name, workstream, days(a), edition));
+          rows.push(makeRow('Sub-task', a.name, spRowNo, ph.name, workstream, days(a), edition, extId(a)));
         });
       });
     });
@@ -110,6 +126,25 @@
     document.body.appendChild(a);
     a.click();
     setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+  }
+
+  var PH_SHEET = 'App phases';
+  var PH_COLUMNS = ['Phase', 'Start', 'End'];
+
+  // One row per phase (Timebox checklist): first/last painted day over the
+  // phase and its whole subtree, as YYYY-MM-DD; empty if nothing is painted.
+  function collectPhases(opts) {
+    opts = opts || {};
+    var phases = opts.phases || window.icPhases || [];
+    return phases.map(function (ph) {
+      var ds = days(ph);
+      (ph.subPhases || []).forEach(function (sp) {
+        ds = ds.concat(days(sp));
+        (sp.subSubPhases || []).forEach(function (a) { ds = ds.concat(days(a)); });
+      });
+      ds.sort(function (a, b) { return a - b; });
+      return { 'Phase': ph.name || '', 'Start': ds.length ? iso(ds[0]) : '', 'End': ds.length ? iso(ds[ds.length - 1]) : '' };
+    });
   }
 
   var MS_SHEET = 'App milestones';
@@ -201,12 +236,15 @@
     return out;
   }
 
-  function writeXlsx(rows, milestones, name) {
+  function writeXlsx(rows, phaseRows, milestones, name) {
     window.icEnsureExcelJs(function () {
       var wb = new window.ExcelJS.Workbook();
       var ws = wb.addWorksheet('Items');
       ws.addRow(COLUMNS);
       rows.forEach(function (r) { ws.addRow(COLUMNS.map(function (c) { return r[c]; })); });
+      var wp = wb.addWorksheet(PH_SHEET);
+      wp.addRow(PH_COLUMNS);
+      phaseRows.forEach(function (p) { wp.addRow(PH_COLUMNS.map(function (c) { return p[c]; })); });
       var wm = wb.addWorksheet(MS_SHEET);
       wm.addRow(MS_COLUMNS);
       milestones.forEach(function (m) { wm.addRow(MS_COLUMNS.map(function (c) { return m[c]; })); });
@@ -275,10 +313,11 @@
       // Snapshot rows, milestones, file name and Workstream at click time: the
       // UI stays interactive while ExcelJS loads, so later changes must not mix in.
       var rows = collectRows({ workstream: input.value.trim() });
+      var phaseRows = collectPhases();
       var milestones = collectMilestones();
       var name = fileName(window.pmSelectedType);
       closeDialog();
-      writeXlsx(rows, milestones, name);
+      writeXlsx(rows, phaseRows, milestones, name);
     };
     actions.appendChild(cancel);
     actions.appendChild(ok);
@@ -304,8 +343,8 @@
   }
 
   window.CalmExport = {
-    COLUMNS: COLUMNS, MS_COLUMNS: MS_COLUMNS, collectRows: collectRows,
-    collectMilestones: collectMilestones, checks: checks, openDialog: openDialog,
+    COLUMNS: COLUMNS, PH_COLUMNS: PH_COLUMNS, MS_COLUMNS: MS_COLUMNS, collectRows: collectRows,
+    collectPhases: collectPhases, collectMilestones: collectMilestones, checks: checks, openDialog: openDialog,
     // v1 entry point, kept as an alias: it opens the dialog so the checks apply.
     exportXlsx: openDialog
   };
