@@ -133,7 +133,8 @@ Edge cases:
   They can then fall outside the visible columns.
   - Spike: moving the start to 1 Sep 2027 gave `painted` `[]`, with `pdays`
     still 61.
-  - So the export must warn about `pdays` outside `[icDates.start, icDates.end]`.
+  - So the export must warn about `pdays` outside `[icDates.start, icDates.end]`,
+    compared as day-numbers (6.4).
 
 ### 1.4 Non-continuous painting and parked items
 
@@ -210,9 +211,10 @@ The spike files were `e2e/_spike/calm-spike.js`, `spike.spec.mjs` and
 
 - **Read:** `currentArea`, `pmSelectedType`, `icPhases`, `icDates`, `icPeriod`,
   `icMilestones`, `pmParked` (only to report counts).
-- **Called:** `_icDayNum`, `icGetPeriods`, `_icColDays`, `icEnsureExcelJs`.
-  `_icColDays` and `icGetPeriods` are only used for the "outside range" check;
-  the dates come from `pdays`.
+- **Called:** `_icDayNum`, `icEnsureExcelJs`. `_icDayNum` (6934) converts
+  `icDates.start` and `icDates.end` to day-numbers for the "outside range" check
+  (6.4); the dates themselves come from `pdays`. `icGetPeriods` and `_icColDays`
+  are not called.
 - **DOM:** `#pm-mode-bar .pm-mode-bar-inner`, `#pm-parked-btn`.
 - **Not needed:** `pmTypeStates`, `_pmSavedIcState`, `icPtSnapshot`,
   `pmSnapshotIc`, `icGroups`. They were reachable, but they are not the source of
@@ -225,9 +227,9 @@ separately loaded file plus the one `<script src>` line. Nothing has to be
 redefined, wrapped or patched.
 
 Limitations, which do not block add-only:
-- **Underscore-prefixed helpers.** `_icColDays` and `_icDayNum` are internal and
-  could be renamed later. `calm-export.js` should check that they exist and fall
-  back to its own copy of `_icDayNum`.
+- **Underscore-prefixed helper.** `_icDayNum` is internal and could be renamed
+  later. `calm-export.js` should check that it exists and fall back to its own
+  copy of `_icDayNum`.
 - **Clusters.** There is no cluster per phase in PM mode (1.2), so "roll-out
   cluster" cannot be read from the Module 5 plan without changing code. This
   affects decision D3, not feasibility.
@@ -465,7 +467,7 @@ update.
 | No start date | **Blocking** | `icDates.start === null` → "Set a project start date; without it the plan has no calendar dates" (1.3). |
 | Nothing painted | **Blocking** | Zero `pdays` in the whole tree. |
 | Activity with no painted cells | Warning | List up to 10 names plus a count. Export them with empty dates. Whether Cloud ALM accepts empty dates is assumed, not verified; T5 confirms it. |
-| Painting outside the project range | Warning | `pdays` before `_icDayNum(icDates.start)` or after `icDates.end` (1.3). |
+| Painting outside the project range | Warning | Compare day-numbers only: `lo = _icDayNum(icDates.start)`, `hi = icDates.end ? _icDayNum(icDates.end) : null`. A `pdays` key `k` (as a number) is outside when `k < lo` or (`hi !== null` and `k > hi`). `icDates.end` is a `Date` (5651, 6693), so it must never be compared directly with a key. If `hi` is `null`, only the lower bound is checked (1.3). |
 | Non-continuous painting | Warning | More than one run of consecutive day-numbers (D7). |
 | Phase names vs Timebox | Info | List the distinct `ph.name` values that will be written to Timebox. The user must create them in Cloud ALM first. |
 | Milestones present | Info | "N milestones must be created in Cloud ALM project setup" (D4). |
@@ -575,9 +577,9 @@ rule applies to all of them.
 - **Unknown column headers.** The real template may use different headers,
   required columns or date formats. Mitigation: the `COLUMNS` constant, and T5
   before any real use.
-- **Internal helpers.** `_icColDays` and `_icDayNum` are underscore-prefixed
-  internals and could change in a future app edit. Mitigation: check that they
-  exist, keep a local fallback for `_icDayNum`, and use E2E tests as guards.
+- **Internal helper.** `_icDayNum` is an underscore-prefixed internal and could
+  change in a future app edit. Mitigation: check that it exists, keep a local
+  fallback copy, and use E2E tests as guards.
 - **Reassigned globals.** `pmApplySnapshot` replaces `icPhases` (17157).
   Mitigation: always read `window.icPhases` at click time.
 - **Month rounding.** Months view paints whole calendar months, so a start date
