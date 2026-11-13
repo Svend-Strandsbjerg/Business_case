@@ -30,20 +30,15 @@ In the agent sandbox, use the shared Playwright browser cache
 If an HTTP proxy is set, run with `NO_PROXY=127.0.0.1,localhost` so the local
 server is reached directly.
 
-## Rules for this repository: add, don't change
+## Rules for this repository
 
-- **Add, don't change.** Existing files and existing behavior stay exactly as
-  they are.
-- Never modify existing functions, markup, styles or behavior in `index.html`
-  / `business-case.html`.
-- New features live in new files (e.g. `calm-export.js`). They are loaded by
+- **No visible change for users**, and **no functional change** unless a task
+  explicitly asks for one.
+- Changes to existing code are allowed when a task needs them. Keep them
+  minimal and local. Never reformat or reorder existing code.
+- Prefer new code in new files (e.g. `calm-export.js`). They are loaded by
   ONE added `<script src="...">` line, placed right before `</body>`, in both
   HTML files.
-- New code reads the app's global state and functions and calls existing
-  helpers. It never redefines, wraps or patches them.
-- If a feature cannot be built without changing existing code, stop. Return
-  verdict BLOCKED naming the exact function or line and the reason. Do not
-  change it.
 - Keep `index.html` and `business-case.html` byte-identical (CI checks this
   with `cmp`).
 - Do not modify or run `apply_*.py` or `test_*.js`.

@@ -1,0 +1,551 @@
+{
+  "version": 1,
+  "exportedAt": "2026-11-13T19:46:41.005Z",
+  "lang": "en",
+  "area": "hr",
+  "industry": "food",
+  "currency": "DKK",
+  "roi": {
+    "sfEC": 3450000,
+    "sfOnb": 502000,
+    "sapIT": 700000,
+    "hrServiceEff": 330000,
+    "dataSave": 0
+  },
+  "scRoiLicenses": {
+    "t1License": 3200000,
+    "t2License": 1500000,
+    "t3License": 700000,
+    "t4License": 1500000
+  },
+  "activeTiers": {
+    "1": true,
+    "2": false,
+    "3": false,
+    "4": false
+  },
+  "hrYearRange": 5,
+  "scYearRange": 5,
+  "hrParams": {
+    "hires": 120,
+    "turnover": 10.4,
+    "salary": 60000,
+    "rateManager": 584,
+    "hrsManager": 30,
+    "rateHRRek": 400,
+    "hrsHRRek": 25,
+    "rateHRService": 448,
+    "hrsHRService": 8,
+    "buddyCost": 30000,
+    "equipCost": 3500,
+    "redHires": 2,
+    "redRehires": 3,
+    "effHRRek": 5,
+    "effHRService": 5,
+    "effOnboarding": 2,
+    "rampRates": [
+      0.6,
+      0.55,
+      0.5,
+      0.45,
+      0.4,
+      0.35,
+      0.3,
+      0.25,
+      0.2,
+      0.15,
+      0.1,
+      0
+    ]
+  },
+  "scParams": {
+    "posPerYear": 12345,
+    "poCostManual": 700,
+    "poAutoImprovement": 40,
+    "financeSaving": 600000,
+    "maintBudget": 20000000,
+    "maintEfficiency": 12,
+    "batchesPerYear": 8000,
+    "avgBatchValue": 150000,
+    "rejectionRate": 1.5,
+    "rejectionReduction": 25,
+    "spoilageValue": 15000000,
+    "spoilageReduction": 20,
+    "inventoryValue": 60000000,
+    "carryingCostPct": 20,
+    "inventoryReduction": 15,
+    "safetyStockValue": 20000000,
+    "safetyStockReduction": 18,
+    "downtimeHrs": 800,
+    "downtimeCostPerHr": 55000,
+    "downtimeReduction": 25,
+    "sparePartsValue": 8000000,
+    "sparePartsReduction": 18,
+    "t1License": 3200000,
+    "t1ImplY0": 9000000,
+    "t1ImplY1": 4500000,
+    "t2License": 1500000,
+    "t2ImplY0": 3000000,
+    "t2ImplY1": 1500000,
+    "t3License": 700000,
+    "t3ImplY0": 3500000,
+    "t3ImplY1": 1500000,
+    "dmOeeHours": 6000,
+    "dmOeeCostPerHour": 60000,
+    "dmOeeImprovement": 7,
+    "dmScrapValue": 8000000,
+    "dmScrapReduction": 25,
+    "dmSetupHrs": 3000,
+    "dmSetupCostPerHr": 500,
+    "dmSetupReduction": 25,
+    "t4License": 1500000,
+    "t4ImplY0": 4000000,
+    "t4ImplY1": 2000000
+  },
+  "customParams": {
+    "hr": [],
+    "sc": []
+  },
+  "customBenefits": {
+    "hr": [],
+    "sc": [],
+    "sd": []
+  },
+  "hiddenBenefits": {
+    "hr": {},
+    "sc": {},
+    "sd": {}
+  },
+  "formulaOverrides": {
+    "hr": {},
+    "sc": {},
+    "sd": {}
+  },
+  "ic": {
+    "groups": [
+      {
+        "id": "grp1",
+        "name": "Implementation project",
+        "expanded": true
+      },
+      {
+        "id": "grp2",
+        "name": "Roll out",
+        "expanded": true
+      }
+    ],
+    "nextGrpId": 3,
+    "phases": [
+      {
+        "id": "ph1",
+        "name": "Discover",
+        "color": "#F5A623",
+        "groupId": "grp1",
+        "expanded": false,
+        "painted": {
+          "0": true,
+          "1": true,
+          "2": true
+        },
+        "subPhases": [
+          {
+            "id": "sp1a",
+            "name": "Discovery and Value",
+            "color": null,
+            "painted": {},
+            "expanded": true,
+            "subSubPhases": []
+          }
+        ]
+      },
+      {
+        "id": "ph2",
+        "name": "Prepare",
+        "color": "#7AB648",
+        "groupId": "grp1",
+        "expanded": false,
+        "painted": {},
+        "subPhases": [
+          {
+            "id": "sp2a",
+            "name": "Setup and Enablement",
+            "color": null,
+            "painted": {},
+            "expanded": true,
+            "subSubPhases": []
+          }
+        ]
+      },
+      {
+        "id": "ph3",
+        "name": "Explore",
+        "color": "#3AADA8",
+        "groupId": "grp1",
+        "expanded": false,
+        "painted": {},
+        "subPhases": [
+          {
+            "id": "sp3a",
+            "name": "Fit-to-Standard Analysis",
+            "color": null,
+            "painted": {},
+            "expanded": true,
+            "subSubPhases": []
+          },
+          {
+            "id": "sp3b",
+            "name": "Scope and Configure",
+            "color": null,
+            "painted": {},
+            "expanded": true,
+            "subSubPhases": []
+          }
+        ]
+      },
+      {
+        "id": "ph4",
+        "name": "Realize",
+        "color": "#1A6FAD",
+        "groupId": "grp1",
+        "expanded": false,
+        "painted": {},
+        "subPhases": [
+          {
+            "id": "sp4a",
+            "name": "Migrate, Integrate, Extend",
+            "color": null,
+            "painted": {},
+            "expanded": true,
+            "subSubPhases": []
+          },
+          {
+            "id": "sp4b",
+            "name": "Test",
+            "color": null,
+            "painted": {},
+            "expanded": true,
+            "subSubPhases": []
+          }
+        ]
+      },
+      {
+        "id": "ph5",
+        "name": "Deploy",
+        "color": "#F07800",
+        "groupId": "grp1",
+        "expanded": false,
+        "painted": {},
+        "subPhases": [
+          {
+            "id": "sp5a",
+            "name": "Onboard Users and Deploy",
+            "color": null,
+            "painted": {},
+            "expanded": true,
+            "subSubPhases": []
+          }
+        ]
+      },
+      {
+        "id": "ph6",
+        "name": "Run",
+        "color": "#6B7C3F",
+        "groupId": "grp1",
+        "expanded": false,
+        "painted": {},
+        "subPhases": [
+          {
+            "id": "sp6a",
+            "name": "Innovate, Operate, Support",
+            "color": null,
+            "painted": {},
+            "expanded": true,
+            "subSubPhases": []
+          }
+        ]
+      }
+    ],
+    "nextPhId": 7,
+    "nextSpId": 20,
+    "nextSspId": 100,
+    "itRes": [
+      {
+        "id": "it1",
+        "name": "Golden PM",
+        "grade": null,
+        "clusterId": "itc1",
+        "hours": {
+          "0": 80,
+          "1": 40
+        }
+      },
+      {
+        "id": "it2",
+        "name": "Solution Architect",
+        "grade": null,
+        "clusterId": "itc1",
+        "hours": {}
+      },
+      {
+        "id": "it3",
+        "name": "Developer",
+        "grade": null,
+        "clusterId": "itc1",
+        "hours": {}
+      }
+    ],
+    "bizRes": [
+      {
+        "id": "biz1",
+        "name": "Business Owner",
+        "grade": null,
+        "clusterId": "bizc1",
+        "hours": {}
+      },
+      {
+        "id": "biz2",
+        "name": "Key User",
+        "grade": null,
+        "clusterId": "bizc1",
+        "hours": {}
+      }
+    ],
+    "itClusters": [
+      {
+        "id": "itc1",
+        "name": "Implementation team",
+        "expanded": true
+      },
+      {
+        "id": "itc2",
+        "name": "Roll out team",
+        "expanded": true
+      }
+    ],
+    "bizClusters": [
+      {
+        "id": "bizc1",
+        "name": "Implementation team",
+        "expanded": true
+      },
+      {
+        "id": "bizc2",
+        "name": "Roll out team",
+        "expanded": true
+      }
+    ],
+    "nextClusterId": 10,
+    "nextResId": 20,
+    "addCosts": [
+      {
+        "id": "ac1",
+        "name": "Licence",
+        "years": {}
+      },
+      {
+        "id": "ac2",
+        "name": "Travel",
+        "years": {}
+      },
+      {
+        "id": "ac3",
+        "name": "Maintenance",
+        "years": {}
+      },
+      {
+        "id": "ac4",
+        "name": "AMS",
+        "years": {}
+      }
+    ],
+    "nextAcId": 10,
+    "sanityCats": [
+      {
+        "id": "sc1",
+        "name": "Detail design",
+        "hours": 0
+      },
+      {
+        "id": "sc2",
+        "name": "Meetings",
+        "hours": 0
+      },
+      {
+        "id": "sc3",
+        "name": "Config",
+        "hours": 0
+      },
+      {
+        "id": "sc4",
+        "name": "Program",
+        "hours": 0
+      },
+      {
+        "id": "sc5",
+        "name": "Documentation",
+        "hours": 0
+      },
+      {
+        "id": "sc6",
+        "name": "Unit test",
+        "hours": 0
+      },
+      {
+        "id": "sc7",
+        "name": "UAT support",
+        "hours": 0
+      },
+      {
+        "id": "sc8",
+        "name": "SU training",
+        "hours": 0
+      },
+      {
+        "id": "sc9",
+        "name": "Master data",
+        "hours": 0
+      },
+      {
+        "id": "sc10",
+        "name": "Final prep",
+        "hours": 0
+      },
+      {
+        "id": "sc11",
+        "name": "HC support",
+        "hours": 0
+      },
+      {
+        "id": "sc12",
+        "name": "Status meeting",
+        "hours": 0
+      }
+    ],
+    "nextScId": 20,
+    "period": "months",
+    "duration": 2,
+    "extraMonths": 0,
+    "dateStart": null,
+    "dateEnd": null,
+    "vacPeriods": [],
+    "milestones": [],
+    "nextMsId": 1,
+    "parked": [],
+    "journeyBoxes": [],
+    "nextJbId": 1,
+    "itContingencyPct": 0,
+    "bizContingencyPct": 0
+  },
+  "icProjectType": "sd",
+  "icRateCards": {
+    "shared": false,
+    "it": [
+      {
+        "id": "itg1",
+        "name": "Grade 1",
+        "rate": 900
+      },
+      {
+        "id": "itg2",
+        "name": "Grade 2",
+        "rate": 1000
+      },
+      {
+        "id": "itg3",
+        "name": "Grade 3",
+        "rate": 1200
+      },
+      {
+        "id": "itg4",
+        "name": "Grade 4",
+        "rate": 1400
+      },
+      {
+        "id": "itg5",
+        "name": "Grade 5",
+        "rate": 1600
+      }
+    ],
+    "biz": [
+      {
+        "id": "bizg1",
+        "name": "Grade 1",
+        "rate": 450
+      },
+      {
+        "id": "bizg2",
+        "name": "Grade 2",
+        "rate": 550
+      },
+      {
+        "id": "bizg3",
+        "name": "Grade 3",
+        "rate": 650
+      },
+      {
+        "id": "bizg4",
+        "name": "Grade 4",
+        "rate": 750
+      },
+      {
+        "id": "bizg5",
+        "name": "Grade 5",
+        "rate": 850
+      }
+    ]
+  },
+  "sd": {
+    "params": {
+      "entities": 5,
+      "entitiesPerYear": 1,
+      "ordersPerEntity": 15000,
+      "avgRevenue": 2000000,
+      "monthsSaved": 8,
+      "minPerOrder": 5,
+      "fteRate": 500000,
+      "inventoryValue": 50000000,
+      "invCarrying": 20,
+      "invReduction": 10,
+      "localErpCost": 1500000,
+      "margin": 15,
+      "monthEndHrs": 40,
+      "financeRate": 800
+    },
+    "implCosts": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "yearRange": 5,
+    "licenseValue": 4500000,
+    "marketEntryRecurring": false,
+    "rampPcts": {
+      "sd_s1": [
+        100
+      ],
+      "sd_s2": [
+        100
+      ],
+      "sd_s3": [
+        100
+      ],
+      "sd_s4": [
+        100
+      ],
+      "sd_s5": [
+        100
+      ]
+    },
+    "scaleStartYear": 1,
+    "scaleEndYear": 5,
+    "entitiesPerYearArr": []
+  }
+}
