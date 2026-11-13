@@ -464,7 +464,7 @@ update.
 |---|---|---|
 | No start date | **Blocking** | `icDates.start === null` → "Set a project start date; without it the plan has no calendar dates" (1.3). |
 | Nothing painted | **Blocking** | Zero `pdays` in the whole tree. |
-| Activity with no painted cells | Warning | List up to 10 names plus a count. Export them with empty dates (Cloud ALM accepts empty dates). |
+| Activity with no painted cells | Warning | List up to 10 names plus a count. Export them with empty dates. Whether Cloud ALM accepts empty dates is assumed, not verified; T5 confirms it. |
 | Painting outside the project range | Warning | `pdays` before `_icDayNum(icDates.start)` or after `icDates.end` (1.3). |
 | Non-continuous painting | Warning | More than one run of consecutive day-numbers (D7). |
 | Phase names vs Timebox | Info | List the distinct `ph.name` values that will be written to Timebox. The user must create them in Cloud ALM first. |
