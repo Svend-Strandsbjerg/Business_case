@@ -118,14 +118,16 @@
       alert('Set a project start date first');
       return;
     }
-    var edition = window.pmSelectedType;
+    // Snapshot rows and file name at click time: the UI stays interactive
+    // while ExcelJS loads, so an edition switch or leaving PM must not mix in.
+    var rows = collectRows();
+    var name = fileName(window.pmSelectedType);
     window.icEnsureExcelJs(function () {
-      var rows = collectRows();
       var wb = new window.ExcelJS.Workbook();
       var ws = wb.addWorksheet('Items');
       ws.addRow(COLUMNS);
       rows.forEach(function (r) { ws.addRow(COLUMNS.map(function (c) { return r[c]; })); });
-      wb.xlsx.writeBuffer().then(function (buf) { download(buf, fileName(edition)); });
+      wb.xlsx.writeBuffer().then(function (buf) { download(buf, name); });
     });
   }
 

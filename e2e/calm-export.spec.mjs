@@ -218,3 +218,32 @@ test('after an edition switch the export uses the new edition, and switching bac
   expect(g.cell(1, 'Workstream')).toBe('SAP S/4HANA Cloud Public Edition');
   expectNoErrors(pageWatch);
 });
+
+test('a slow ExcelJS load still exports the click-time edition after a switch and leaving PM', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  const before = await page.evaluate(() => ({ sp0: icPhases[0].subPhases[0].name, edition: pmSelectedType }));
+  const count = await expectedCount(page);
+  // Hold the loader callback until the test releases it.
+  await page.evaluate(() => {
+    const orig = window.icEnsureExcelJs;
+    window.icEnsureExcelJs = (cb) => { window.__releaseExcelJs = () => orig(cb); };
+  });
+  const dl = page.waitForEvent('download');
+  await page.locator(BTN).click();
+  await page.evaluate(() => pmSelectType('private-new'));
+  await setStart(page);
+  await page.evaluate(() => { window.selectArea('ic'); window.__releaseExcelJs(); });
+  const d = await dl;
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(await d.path());
+  const ws = wb.getWorksheet('Items');
+  const header = ws.getRow(1).values.slice(1);
+  const cell = (col) => ws.getRow(2).getCell(header.indexOf(col) + 1).value;
+  expect(before.edition).toBe('public');
+  expect(d.suggestedFilename()).toMatch(/^calm-tasks-public-\d{8}\.xlsx$/);
+  expect(ws.rowCount - 1).toBe(count);
+  expect([cell('Title'), cell('Workstream'), cell('Tags')])
+    .toEqual([before.sp0, 'SAP S/4HANA Cloud Public Edition', 'app-export,public']);
+  expectNoErrors(pageWatch);
+});
