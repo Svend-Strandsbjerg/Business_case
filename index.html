@@ -1322,7 +1322,14 @@
     .ic-ask-panel { position:fixed; right:24px; bottom:88px; z-index:10041; width:min(400px,calc(100vw - 40px));
       height:min(520px,calc(100vh - 140px)); background:#fff; border:1px solid var(--border-light); border-radius:14px;
       box-shadow:0 18px 50px rgba(15,23,42,.26); display:none; flex-direction:column; overflow:hidden; }
+    .ic-ask-panel.open { position:fixed; }
     .ic-ask-panel.open { display:flex; }
+    .ic-ask-grip-t { position:absolute; top:0; left:10px; right:10px; height:7px; cursor:ns-resize; z-index:3; }
+    .ic-ask-grip-l { position:absolute; left:0; top:10px; bottom:10px; width:7px; cursor:ew-resize; z-index:3; }
+    .ic-ask-grip-c { position:absolute; left:0; top:0; width:14px; height:14px; cursor:nwse-resize; z-index:4; }
+    .ic-ask-grip-c::after { content:''; position:absolute; left:3px; top:3px; width:7px; height:7px;
+      border-left:2px solid #cbd5e1; border-top:2px solid #cbd5e1; border-radius:2px 0 0 0; }
+    .ic-ask-panel:hover .ic-ask-grip-c::after { border-color:var(--accent); }
     .ic-ask-head { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--border-light); background:var(--surface); }
     .ic-ask-head-t { font-size:13px; font-weight:700; color:var(--navy); }
     .ic-ask-head-btn { background:#fff; border:1px solid #cbd5e1; border-radius:7px; padding:3px 9px; font-size:11px; font-family:inherit; color:var(--text); cursor:pointer; }
@@ -10307,6 +10314,56 @@ html.ic-scroll-lock, html.ic-scroll-lock body{ overflow:hidden !important; }
   // snapshot or the JSON export, so re-opening a saved file starts blank.
   var icAskLog=[];
 
+
+  // ── Let the chat be resized by dragging its top and left edges ─────────
+  // The panel is anchored to the bottom-right corner, so dragging the top edge
+  // upwards makes it taller and the left edge leftwards makes it wider. The
+  // chosen size is a UI preference, so it is remembered in the browser - unlike
+  // the conversation itself, which is never stored.
+  var IC_ASK_MIN_W=320, IC_ASK_MIN_H=260;
+  function _icAskClampSize(wv,hv){
+    return { w:Math.max(IC_ASK_MIN_W, Math.min(wv, window.innerWidth-48)),
+             h:Math.max(IC_ASK_MIN_H, Math.min(hv, window.innerHeight-120)) };
+  }
+  function icAskSetSize(wv,hv,save){
+    var pan=document.getElementById('ic-ask-panel'); if(!pan) return;
+    var c=_icAskClampSize(wv,hv);
+    pan.style.width=c.w+'px'; pan.style.height=c.h+'px';
+    if(save){ try{ localStorage.setItem('icAskSize', c.w+'x'+c.h); }catch(e){} }
+  }
+  function icAskRestoreSize(){
+    var pan=document.getElementById('ic-ask-panel'); if(!pan) return;
+    try{
+      var v=localStorage.getItem('icAskSize');
+      if(v && /^\d+x\d+$/.test(v)){ var p2=v.split('x'); icAskSetSize(+p2[0], +p2[1], false); return; }
+    }catch(e){}
+    // no saved size: start from whatever the stylesheet gives it
+    var r=pan.getBoundingClientRect();
+    if(r.width&&r.height) icAskSetSize(r.width, r.height, false);
+  }
+  function _icAskDragStart(e, axis){
+    var pan=document.getElementById('ic-ask-panel'); if(!pan) return;
+    e.preventDefault();
+    var r=pan.getBoundingClientRect();
+    var sx=e.clientX, sy=e.clientY, sw=r.width, sh=r.height;
+    document.body.style.userSelect='none';
+    function move(ev){
+      // dragging up / left grows the panel, because it is pinned bottom-right
+      var w2=(axis==='x'||axis==='xy')?(sw+(sx-ev.clientX)):sw;
+      var h2=(axis==='y'||axis==='xy')?(sh+(sy-ev.clientY)):sh;
+      icAskSetSize(w2,h2,false);
+    }
+    function up(){
+      document.removeEventListener('mousemove',move);
+      document.removeEventListener('mouseup',up);
+      document.body.style.userSelect='';
+      var rr=pan.getBoundingClientRect();
+      icAskSetSize(rr.width, rr.height, true);
+    }
+    document.addEventListener('mousemove',move);
+    document.addEventListener('mouseup',up);
+  }
+
   function icAskToggleChat(){
     var pan=document.getElementById('ic-ask-panel'); if(!pan) return;
     var open=pan.classList.toggle('open');
@@ -10314,6 +10371,7 @@ html.ic-scroll-lock, html.ic-scroll-lock body{ overflow:hidden !important; }
     if(btn) btn.classList.toggle('is-open', open);
     if(open){
       // Fill the welcome state the first time it is opened on a blank chat.
+      icAskRestoreSize();
       var log=document.getElementById('ic-ask-log');
       if(log && !log.children.length && (!icAskLog || !icAskLog.length)) log.innerHTML=_icAskEmptyHtml();
       var inp=document.getElementById('ic-ask-input');
@@ -19908,6 +19966,9 @@ function icDoRestore(idx) {
   <span class="ic-ask-fab-q">&#63;</span><span class="ic-ask-fab-x">&#10005;</span>
 </button>
 <div class="ic-ask-panel" id="ic-ask-panel">
+  <div class="ic-ask-grip-t" onmousedown="_icAskDragStart(event,'y')" title="Drag to resize"></div>
+  <div class="ic-ask-grip-l" onmousedown="_icAskDragStart(event,'x')" title="Drag to resize"></div>
+  <div class="ic-ask-grip-c" onmousedown="_icAskDragStart(event,'xy')" title="Drag to resize"></div>
   <div class="ic-ask-head">
     <span class="ic-ask-head-t" data-i18n="ic_ask_title">Ask about the plan</span>
     <span style="flex:1"></span>
