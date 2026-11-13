@@ -407,3 +407,188 @@ update.
 | D6 | Exclude parked items? | **Yes.** They are already outside `icPhases` (1.4). Report the count in the pre-export summary. |
 | D7 | Non-continuous painted cells | **One row from min to max with tag `split`, plus a warning listing the affected activities.** Alternative: one row per run, titled "name (1/2)". That doubles rows and breaks predecessor numbering. |
 | D8 | Which edition(s) first | **Only the edition that is open** (`pmSelectedType`). All four share the same phase names, so nothing is edition-specific. Public first for test fixtures. |
+
+---
+
+## 6. Implementation design
+
+### 6.1 New files
+
+- `calm-export.js` sits at the repo root, next to `index.html`. It is one IIFE
+  and exposes a single namespace, `window.CalmExport`, with:
+  - `collectRows()`: a pure function from `{phases, dates}` to row objects;
+  - `checks()`;
+  - `exportXlsx()`.
+- One added line before `</body></html>` (17911) in **both** `index.html` and
+  `business-case.html`:
+  `<script src="calm-export.js"></script>`. CI runs `cmp`, which keeps the two
+  files identical.
+- `e2e/calm-export.spec.mjs` holds the E2E tests (6.5).
+- Unit tests for the pure mapping are optional. `collectRows` takes its inputs as
+  arguments, so a Node test can call it with no DOM. But `npm test` only runs
+  the four existing `test_*.js`, and `package.json` must not change. **So the
+  mapping is tested through Playwright `page.evaluate`** in the same spec.
+
+### 6.2 Button
+
+- Where: inserted into `#pm-mode-bar .pm-mode-bar-inner` (4732), directly before
+  `#pm-parked-btn` (4740).
+- Look: class `pm-parked-btn`, label "Export to Cloud ALM".
+- When: at `DOMContentLoaded`, or straight away if the DOM is already parsed.
+- It is visible only in PM mode, through the existing CSS (2941). It was
+  verified to survive edition switches (2.2).
+- On click:
+  1. If `currentArea !== 'pm'`, return.
+  2. Run `checks()`. If there is a blocking error, show the problems in an
+     `alert` or `confirm` and stop.
+  3. If there are only warnings, ask the user to confirm.
+  4. `icEnsureExcelJs(build)` (12768) loads ExcelJS lazily; it does nothing if
+     ExcelJS is already loaded. `build` then writes the workbook and downloads
+     `calm-tasks-<edition>-<yyyymmdd>.xlsx`, using a Blob and an `<a download>`
+     link (the pattern proven in the spike).
+
+### 6.3 Lookup sheets
+
+- **Do not fill them in v1.** Cloud ALM validates against its own project
+  values. Copying the lists into the file adds nothing and can drift from the
+  tenant.
+- When the template (`docs/calm-task-template.xlsx`) is available, the better
+  approach is to write the **same sheet names** as the template, with the values
+  the export uses (Types, Status, Timebox, Deliverable, Workstreams). The sheets
+  then serve as a readable list of values the project must contain.
+- Always write the extra sheet `App milestones` (D4).
+
+### 6.4 Checks before export
+
+| Check | Severity | Rule |
+|---|---|---|
+| No start date | **Blocking** | `icDates.start === null` → "Set a project start date; without it the plan has no calendar dates" (1.3). |
+| Nothing painted | **Blocking** | Zero `pdays` in the whole tree. |
+| Activity with no painted cells | Warning | List up to 10 names plus a count. Export them with empty dates (Cloud ALM accepts empty dates). |
+| Painting outside the project range | Warning | `pdays` before `_icDayNum(icDates.start)` or after `icDates.end` (1.3). |
+| Non-continuous painting | Warning | More than one run of consecutive day-numbers (D7). |
+| Phase names vs Timebox | Info | List the distinct `ph.name` values that will be written to Timebox. The user must create them in Cloud ALM first. |
+| Milestones present | Info | "N milestones must be created in Cloud ALM project setup" (D4). |
+| Parked items | Info | `pmParked[pmSelectedType].length` excluded (D6). |
+| Title length | Warning | Names longer than the template limit. The limit is unknown until the template is available; assume 255 for now. |
+
+### 6.5 E2E tests
+
+- File: `e2e/calm-export.spec.mjs`.
+- It imports `test`, `expect` and `EMPTY_BUCKET` from `e2e/fixtures.mjs`, the
+  same as `smoke.spec.mjs`, so ExcelJS comes from `node_modules` and new
+  page or console errors fail the test.
+- No route rewriting is needed: the real `<script src>` line is in the HTML.
+
+Test setup (as in the spike):
+1. `selectArea('pm')`.
+2. `icDates.start = new Date(2027,0,13); icAutoComputeEndDate(); icSetup();`
+3. Paint with `icToggleCell(ph, sp, act, idx)`.
+
+Cases:
+1. The button exists once in the PM bar and is hidden outside PM.
+2. With no start date, clicking shows the blocking message and creates no
+   download. Accept the dialog with `page.on('dialog')`.
+3. Happy path, months view:
+   - Download the file and read it with ExcelJS.
+   - Check that the header row equals `COLUMNS`.
+   - Check the row count = sub-phases + activities.
+   - Check row 2 is a `Project Task` with the right Timebox, start and due.
+   - Check row 3 is a `Sub-task` with `Parent Row` = 1.
+   - Assert **small values only**: specific cells and counts, never the whole
+     sheet.
+4. Weeks view gives the same dates as months view, for cells painted in months
+   view.
+5. Non-continuous painting: the row has tag `split` and a warning was shown.
+6. A parked activity does not appear (as a title count).
+7. After an edition switch, the export uses the new edition's names.
+
+---
+
+## 7. Task breakdown
+
+Each task is one PR, sized to close in one fix cycle. The "add, don't change"
+rule applies to all of them.
+
+**T1: Skeleton and button**
+- Scope:
+  - `calm-export.js` with the IIFE, `window.CalmExport` and the button
+    injection (6.2).
+  - The `<script src>` line in both HTML files.
+  - The click handler only calls `icEnsureExcelJs` and downloads an `Items`
+    sheet that contains just the header row.
+- AC:
+  - The button is visible only in PM and survives edition switches.
+  - The two HTML files are still identical (`cmp`).
+  - The downloaded file has an `Items` sheet with the `COLUMNS` header.
+  - E2E cases 1 and part of 3 pass.
+- Dependencies: none. Decisions D1 and D8 are assumed to be (a) and the current
+  edition.
+
+**T2: Row mapping and dates**
+- Scope:
+  - `collectRows()` for hierarchy depth A (or B, per D2).
+  - Dates from `pdays` (1.3), parent rows, Timebox, Status `Open`, Source,
+    Tags, Workstream (D3).
+- AC:
+  - E2E cases 3, 4, 6 and 7 pass.
+  - Row count = sub-phases + activities of the open edition.
+  - Dates are ISO strings and do not depend on the view.
+- Dependencies: T1, D2, D3.
+
+**T3: Checks before export**
+- Scope:
+  - `checks()` with the table in 6.4.
+  - The confirm/alert flow.
+  - Handling of non-continuous painting according to D7.
+- AC: E2E cases 2 and 5 pass; blocking checks prevent any download.
+- Dependencies: T2, D7.
+
+**T4: Milestones sheet and lookup sheets**
+- Scope: the `App milestones` sheet (D4); lookup sheets according to 6.3.
+- AC: an E2E test with one added milestone shows it in the sheet with the right
+  Monday date.
+- Dependencies: T2, D4.
+
+**T5: Adopt the real tenant template**
+- Scope:
+  - Replace `COLUMNS` with the headers from `docs/calm-task-template.xlsx`.
+  - Update the title length limit.
+  - Remove the "provisional" note from this document.
+- AC:
+  - The E2E header assertion matches the template.
+  - A manual test upload into a Cloud ALM sandbox project succeeds. The human
+    does this, because the sandbox cannot reach SAP.
+- Dependencies: T2, and the human providing the template.
+
+**T6 (optional, only if D1 = b or c): Date update through "Download for update"**
+- Scope: import a Cloud ALM download, match rows by normalized title and phase
+  (section 4 b), write the dates, and export the file again.
+- AC: matched, unmatched and ambiguous rows are counted in the dialog; unique
+  IDs are preserved.
+- Dependencies: T2, a tenant test of KBA 3561362.
+
+---
+
+## 8. Risks
+
+- **Unknown column headers.** The real template may use different headers,
+  required columns or date formats. Mitigation: the `COLUMNS` constant, and T5
+  before any real use.
+- **Internal helpers.** `_icColDays` and `_icDayNum` are underscore-prefixed
+  internals and could change in a future app edit. Mitigation: check that they
+  exist, keep a local fallback for `_icDayNum`, and use E2E tests as guards.
+- **Reassigned globals.** `pmApplySnapshot` replaces `icPhases` (17157).
+  Mitigation: always read `window.icPhases` at click time.
+- **Month rounding.** Months view paints whole calendar months, so a start date
+  can be before `icDates.start` (1.3). Mitigation: the "outside range" warning.
+  Optionally, clamp to the project start (a small decision for T3).
+- **Duplicates if the wrong option is used.** Uploading into a project with a
+  roadmap template doubles the tasks (section 4). Mitigation: D1, and a sentence
+  in the export dialog.
+- **Timebox mismatch.** Rows can be rejected if the phases do not exist in the
+  Cloud ALM project. Mitigation: the "Info" check lists the phase names.
+- **KBA 3561362.** This only matters for options (b) and (c). Test on the tenant
+  first.
+- **Upload size.** About 420 rows per edition, which is not expected to be a
+  limit. This has not been verified against tenant limits.
