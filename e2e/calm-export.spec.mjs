@@ -5,6 +5,10 @@ import { test, expect, EMPTY_BUCKET } from './fixtures.mjs';
 // small values: specific cells, counts and short summaries.
 
 const BTN = '#pm-mode-bar #calm-export-btn';
+const DIALOG = '#calm-export-dialog';
+const OK = '#calm-export-confirm';
+const CANCEL = '#calm-export-cancel';
+const WS = '#calm-export-workstream';
 
 async function openPm(page) {
   await page.goto('/index.html');
@@ -50,10 +54,14 @@ async function expectedCount(page) {
     (m, sp) => m + 1 + (sp.subSubPhases || []).length, 0), 0));
 }
 
-// Clicks the button, reads the download back and returns a small summary.
-async function exportFile(page) {
-  const dl = page.waitForEvent('download');
+// Opens the dialog, optionally sets the Workstream, clicks Export, reads the
+// download back and returns a small summary.
+async function exportFile(page, workstream) {
   await page.locator(BTN).click();
+  await expect(page.locator(DIALOG)).toBeVisible();
+  if (workstream !== undefined) await page.locator(WS).fill(workstream);
+  const dl = page.waitForEvent('download');
+  await page.locator(OK).click();
   const d = await dl;
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(await d.path());
@@ -65,8 +73,14 @@ async function exportFile(page) {
   };
   const titles = [];
   for (let r = 2; r <= ws.rowCount; r++) titles.push(ws.getRow(r).getCell(header.indexOf('Title') + 1).value);
+  const wm = wb.getWorksheet('App milestones');
+  const msRows = [];
+  for (let r = 1; r <= wm.rowCount; r++) msRows.push(wm.getRow(r).values.slice(1).map((v) => (v === null || v === undefined ? '' : v)));
+  const column = (col) => titles.map((_, i) => cell(i + 1, col));
   return {
     fileName: d.suggestedFilename(),
+    msRows,
+    column,
     sheets: wb.worksheets.map((w) => w.name),
     header,
     dataRows: ws.rowCount - 1,
@@ -101,16 +115,20 @@ test('button exists once in the PM bar and is visible only in PM mode', async ({
   expectNoErrors(pageWatch);
 });
 
-test('no start date: alert and no download', async ({ page, pageWatch }) => {
+test('no start date: blocking reason in the dialog and no download', async ({ page, pageWatch }) => {
   await openPm(page);
   await page.evaluate(() => { icDates.start = null; icDates.end = null; icSetup(); });
   let downloads = 0;
   page.on('download', () => { downloads += 1; });
   const dialogs = [];
-  page.on('dialog', async (dlg) => { dialogs.push([dlg.type(), dlg.message()]); await dlg.accept(); });
+  page.on('dialog', async (dlg) => { dialogs.push(dlg.type()); await dlg.accept(); });
   await page.locator(BTN).click();
+  await expect(page.locator(DIALOG)).toHaveCount(1);
+  await expect(page.locator(`${DIALOG} [data-group="blocking"]`)).toContainText('No project start date');
+  await expect(page.locator(OK)).toBeDisabled();
+  await page.locator(OK).click({ force: true });
   await page.waitForTimeout(1000);
-  expect(dialogs).toEqual([['alert', 'Set a project start date first']]);
+  expect(dialogs).toEqual([]);
   expect(downloads).toBe(0);
   expect(await page.evaluate(() => typeof window.ExcelJS)).toBe('undefined');
   expectNoErrors(pageWatch);
@@ -134,7 +152,7 @@ test('happy path (months view): sheet, header, row count, parent and dates', asy
 
   const f = await exportFile(page);
   expect(f.fileName).toMatch(/^calm-tasks-public-\d{8}\.xlsx$/);
-  expect(f.sheets).toEqual(['Items']);
+  expect(f.sheets).toEqual(['Items', 'App milestones']);
   expect(f.header).toEqual(columns);
   expect(f.dataRows).toBe(count);
 
@@ -190,6 +208,7 @@ test('a parked activity is not exported', async ({ page, pageWatch }) => {
     return { name: a.name, before, parkedCount: pmParked[pmSelectedType].length };
   });
   expect(parked.parkedCount).toBe(1);
+  await paint(page, 1, 0, 0, [1]); // the export needs painting (blocking check)
   const count = await expectedCount(page);
   const f = await exportFile(page);
   expect(f.dataRows).toBe(count);
@@ -203,6 +222,7 @@ test('after an edition switch the export uses the new edition, and switching bac
   await setStart(page);
   const names = await page.evaluate(() => ({ sp0: icPhases[0].subPhases[0].name, edition: pmSelectedType }));
   expect(names.edition).toBe('private-new');
+  await paint(page, 0, 0, 0, [1]);
   const count = await expectedCount(page);
   const f = await exportFile(page);
   expect(f.fileName).toMatch(/^calm-tasks-private-new-\d{8}\.xlsx$/);
@@ -212,6 +232,7 @@ test('after an edition switch the export uses the new edition, and switching bac
 
   await page.evaluate(() => pmSelectType('public'));
   await setStart(page);
+  await paint(page, 0, 0, 0, [1]);
   await expect(page.locator('#calm-export-btn')).toHaveCount(1);
   const g = await exportFile(page);
   expect(g.fileName).toMatch(/^calm-tasks-public-\d{8}\.xlsx$/);
@@ -222,6 +243,7 @@ test('after an edition switch the export uses the new edition, and switching bac
 test('a slow ExcelJS load still exports the click-time edition after a switch and leaving PM', async ({ page, pageWatch }) => {
   await openPm(page);
   await setStart(page);
+  await paint(page, 0, 0, 0, [1]);
   const before = await page.evaluate(() => ({ sp0: icPhases[0].subPhases[0].name, edition: pmSelectedType }));
   const count = await expectedCount(page);
   // Hold the loader callback until the test releases it.
@@ -229,8 +251,11 @@ test('a slow ExcelJS load still exports the click-time edition after a switch an
     const orig = window.icEnsureExcelJs;
     window.icEnsureExcelJs = (cb) => { window.__releaseExcelJs = () => orig(cb); };
   });
-  const dl = page.waitForEvent('download');
   await page.locator(BTN).click();
+  await page.locator(WS).fill('WS at click');
+  const dl = page.waitForEvent('download');
+  await page.locator(OK).click();
+  await expect(page.locator(DIALOG)).toHaveCount(0);
   await page.evaluate(() => pmSelectType('private-new'));
   await setStart(page);
   await page.evaluate(() => { window.selectArea('ic'); window.__releaseExcelJs(); });
@@ -244,6 +269,152 @@ test('a slow ExcelJS load still exports the click-time edition after a switch an
   expect(d.suggestedFilename()).toMatch(/^calm-tasks-public-\d{8}\.xlsx$/);
   expect(ws.rowCount - 1).toBe(count);
   expect([cell('Title'), cell('Workstream'), cell('Tags')])
-    .toEqual([before.sp0, 'SAP S/4HANA Cloud Public Edition', 'app-export,public']);
+    .toEqual([before.sp0, 'WS at click', 'app-export,public']);
+  expectNoErrors(pageWatch);
+});
+
+// ---- v2: pre-export checks, editable Workstream, App milestones sheet ----
+
+const groupText = (page, g) => page.locator(`${DIALOG} [data-group="${g}"]`);
+
+test('nothing painted: blocking reason in the dialog and no download', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  let downloads = 0;
+  page.on('download', () => { downloads += 1; });
+  await page.locator(BTN).click();
+  await expect(groupText(page, 'blocking')).toContainText('Nothing painted');
+  await expect(groupText(page, 'blocking')).not.toContainText('No project start date');
+  await expect(page.locator(OK)).toBeDisabled();
+  await page.locator(OK).click({ force: true });
+  await page.waitForTimeout(1000);
+  expect(downloads).toBe(0);
+  expect(await page.evaluate(() => typeof window.ExcelJS)).toBe('undefined');
+  expectNoErrors(pageWatch);
+});
+
+test('checks(): structure, info messages and capped lists', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  await paint(page, 0, 0, 0, [1]);
+  const r = await page.evaluate(() => {
+    const c = window.CalmExport.checks();
+    const empty = c.warnings.find((w) => w.includes('no painted cells')) || '';
+    return {
+      keys: Object.keys(c),
+      blocking: c.blocking.length,
+      emptyHasMore: /\+\d+ more$/.test(empty),
+      moreIsRest: Number((empty.match(/\+(\d+) more$/) || [])[1]) === parseInt(empty, 10) - 10,
+      dup: c.info.includes('Upload into a Cloud ALM project WITHOUT an SAP Activate roadmap template, or every task will exist twice.'),
+      timebox: c.info.some((i) => i.startsWith('Phases to create as Timebox') && i.includes(icPhases[0].name)),
+      ms: c.info.some((i) => i.includes('milestones must be created')),
+    };
+  });
+  expect(r).toEqual({ keys: ['blocking', 'warnings', 'info'], blocking: 0, emptyHasMore: true, moreIsRest: true, dup: true, timebox: true, ms: false });
+  expectNoErrors(pageWatch);
+});
+
+test('painting after the end date warns "outside range"; inside the range does not', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  await paint(page, 0, 0, 0, [1]); // Feb 2027
+  await page.locator(BTN).click();
+  await expect(groupText(page, 'warnings')).not.toContainText('outside the project range');
+  await page.locator(CANCEL).click();
+  await paint(page, 0, 0, 1, [3]); // Apr 2027
+  const name = await page.evaluate(() => { icDates.end = new Date(2027, 2, 31); return icPhases[0].subPhases[0].subSubPhases[1].name; });
+  await page.locator(BTN).click();
+  await expect(groupText(page, 'warnings')).toContainText(`1 items have painting outside the project range: ${name}`);
+  await expect(page.locator(OK)).toBeEnabled();
+  expectNoErrors(pageWatch);
+});
+
+test('non-continuous activity is listed in the warning and tagged split', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  await paint(page, 0, 0, 1, [1, 3]);
+  const name = await page.evaluate(() => icPhases[0].subPhases[0].subSubPhases[1].name);
+  await page.locator(BTN).click();
+  await expect(groupText(page, 'warnings')).toContainText('non-continuous painting');
+  await expect(groupText(page, 'warnings')).toContainText(name);
+  await page.locator(CANCEL).click();
+  const f = await exportFile(page);
+  expect(f.cell(3, 'Title')).toBe(name);
+  expect(f.cell(3, 'Tags')).toBe('app-export,public,split');
+  expectNoErrors(pageWatch);
+});
+
+test('Workstream: default, changed value on every row, empty value leaves the column empty', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  await paint(page, 0, 0, 0, [1]);
+  await page.locator(BTN).click();
+  await expect(page.locator(WS)).toHaveValue('SAP S/4HANA Cloud Public Edition');
+  await page.locator(CANCEL).click();
+  const f = await exportFile(page, 'Finance stream');
+  const ws = f.column('Workstream');
+  expect([ws.length > 1, ws.filter((v) => v !== 'Finance stream').length]).toEqual([true, 0]);
+  const g = await exportFile(page, '');
+  expect(g.column('Workstream').filter((v) => v !== '').length).toBe(0);
+  expectNoErrors(pageWatch);
+});
+
+test('Cancel closes the dialog and produces no download', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  await paint(page, 0, 0, 0, [1]);
+  let downloads = 0;
+  page.on('download', () => { downloads += 1; });
+  await page.locator(BTN).click();
+  await expect(page.locator(OK)).toBeEnabled();
+  await page.locator(CANCEL).click();
+  await expect(page.locator(DIALOG)).toHaveCount(0);
+  await page.waitForTimeout(1000);
+  expect(downloads).toBe(0);
+  expect(await page.evaluate(() => typeof window.ExcelJS)).toBe('undefined');
+  expectNoErrors(pageWatch);
+});
+
+test('App milestones sheet: header only without milestones; gate milestone row with Monday date and phase', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  await paint(page, 0, 0, 0, [1]);
+  const f = await exportFile(page);
+  expect(f.sheets).toEqual(['Items', 'App milestones']);
+  expect(f.msRows).toEqual([['Name', 'Date', 'Quality gate', 'Phase', 'Sub-phase']]);
+
+  // Monday 1 Mar 2027, linked to the second phase; plus an earlier unlinked one.
+  const ph = await page.evaluate(() => {
+    const md = Math.floor(Date.UTC(2027, 2, 1) / 86400000);
+    icMilestones.push({ id: icNextMsId++, name: 'Go-live gate', md, isGate: true, phaseId: icPhases[1].id, subPhaseId: null });
+    icMilestones.push({ id: icNextMsId++, name: 'Kick-off', md: md - 28, isGate: false, phaseId: null, subPhaseId: null });
+    icRenderTimeline();
+    return icPhases[1].name;
+  });
+  await page.locator(BTN).click();
+  await expect(groupText(page, 'info')).toContainText('2 milestones must be created in Cloud ALM project setup');
+  await page.locator(CANCEL).click();
+  const g = await exportFile(page);
+  expect(g.msRows).toEqual([
+    ['Name', 'Date', 'Quality gate', 'Phase', 'Sub-phase'],
+    ['Kick-off', '2027-02-01', 'No', '', ''],
+    ['Go-live gate', '2027-03-01', 'Yes', ph, ''],
+  ]);
+  expectNoErrors(pageWatch);
+});
+
+test('v1 exportXlsx still exists and opens exactly one export dialog', async ({ page, pageWatch }) => {
+  await openPm(page);
+  await setStart(page);
+  await paint(page, 0, 0, 0, [1]);
+  let downloads = 0;
+  page.on('download', () => { downloads += 1; });
+  expect(await page.evaluate(() => typeof window.CalmExport.exportXlsx)).toBe('function');
+  await page.evaluate(() => window.CalmExport.exportXlsx());
+  await expect(page.locator(DIALOG)).toHaveCount(1);
+  await expect(page.locator(OK)).toBeEnabled();
+  await page.locator(CANCEL).click();
+  await expect(page.locator(DIALOG)).toHaveCount(0);
+  expect(downloads).toBe(0);
   expectNoErrors(pageWatch);
 });
