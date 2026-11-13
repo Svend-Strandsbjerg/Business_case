@@ -14720,7 +14720,10 @@ view_formula_for:'Vis formler for:'}
   // SECTION 5 — IMPORT / EXPORT
   // ════════════════════════════════
 
-  function exportSettings() {
+  // Builds the full session object written by exportSettings(). Read-only: it
+  // never changes app state or the screen. `ic` is always the Investment Case
+  // state, also in Module 5 (PM mode), where it lives in _pmSavedIcState.
+  function bcBuildSessionData() {
     var data = {
       version: 1,
       exportedAt: new Date().toISOString(),
@@ -14778,6 +14781,17 @@ view_formula_for:'Vis formler for:'}
         entitiesPerYearArr: JSON.parse(JSON.stringify(sdEntitiesPerYearArr))
       }
     };
+    var inPm = currentArea==='pm' && !!_pmSavedIcState;
+    if (inPm) Object.keys(_pmSavedIcState).forEach(function(k){ data.ic[k] = JSON.parse(JSON.stringify(_pmSavedIcState[k])); });
+    var pmStates = JSON.parse(JSON.stringify(pmTypeStates));
+    if (inPm) pmStates[pmSelectedType] = pmSnapshotIc();
+    data.pm = { selectedType: pmSelectedType, typeStates: pmStates, parked: JSON.parse(JSON.stringify(pmParked)) };
+    data.icPtStates = JSON.parse(JSON.stringify(icPtStates));
+    return data;
+  }
+
+  function exportSettings() {
+    var data = bcBuildSessionData();
     var json = JSON.stringify(data, null, 2);
     var blob = new Blob([json], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
@@ -15069,6 +15083,11 @@ view_formula_for:'Vis formler for:'}
   function applyImport(data) {
     if (!data || !data.version) { setImportStatus('Invalid file format.', 'err'); return; }
 
+    // Leave Module 5 (PM mode) first so the IC data below lands in the
+    // Investment Case, not in the live PM plan. Re-entered at the end.
+    var wasPm = currentArea==='pm' && !!_pmSavedIcState;
+    if (wasPm) pmLeave();
+
     // Restore currency preference FIRST so all subsequent dkkToDisplay() calls
     // (which read currentCurrency) convert the canonical-DKK figures below
     // into the imported currency.
@@ -15209,6 +15228,17 @@ view_formula_for:'Vis formler for:'}
       if (typeof renderRateCardEditor==='function') renderRateCardEditor();
       icRenderResources('it'); icRenderResources('biz');
     }
+    // Restore saved IC states per project type and the Module 5 edition plans
+    // (only present in newer exports; older files skip this).
+    if (data.icPtStates) {
+      Object.keys(icPtStates).forEach(function(k){ icPtStates[k] = data.icPtStates[k] ? JSON.parse(JSON.stringify(data.icPtStates[k])) : null; });
+    }
+    if (data.pm) {
+      if (pmTypeKeys.indexOf(data.pm.selectedType) !== -1) pmSelectedType = data.pm.selectedType;
+      if (data.pm.typeStates) pmTypeKeys.forEach(function(k){ pmTypeStates[k] = data.pm.typeStates[k] ? JSON.parse(JSON.stringify(data.pm.typeStates[k])) : null; });
+      if (data.pm.parked) pmTypeKeys.forEach(function(k){ pmParked[k] = JSON.parse(JSON.stringify(data.pm.parked[k] || [])); });
+    }
+    if (wasPm) { pmEnter(); icInitCustomSelects(); icSetup(); }
     setImportStatus('Session restored successfully!', 'ok');
   }
 
@@ -20000,4 +20030,5 @@ function icDoRestore(idx) {
   </div>
 </div>
 <script src="calm-export.js"></script>
+<script src="project-document.js"></script>
 </body></html>
